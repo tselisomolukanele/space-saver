@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "space_saver" "\0"
+            VALUE "CompanyName", "africa.makamoso" "\0"
+            VALUE "FileDescription", "datasaver" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "space_saver" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "space_saver.exe" "\0"
-            VALUE "ProductName", "space_saver" "\0"
+            VALUE "InternalName", "datasaver" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 africa.makamoso. All rights reserved." "\0"
+            VALUE "OriginalFilename", "datasaver.exe" "\0"
+            VALUE "ProductName", "datasaver" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

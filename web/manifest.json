@@ -1,6 +1,6 @@
 {
-    "name": "space_saver",
-    "short_name": "space_saver",
+    "name": "datasaver",
+    "short_name": "datasaver",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
