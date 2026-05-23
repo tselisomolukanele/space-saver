@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -7,45 +10,20 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Camera Images',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Camera Folder Images'),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
 
   final String title;
 
@@ -54,69 +32,196 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final List<File> _cameraImages = [];
+  bool _loading = true;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _loadCameraImages();
+  }
+
+  Future<void> _loadCameraImages() async {
+    // Request storage permissions.
+    // On modern Android versions prefer MANAGE_EXTERNAL_STORAGE (all-files access),
+    // fall back to legacy storage permission where appropriate, and guide the
+    // user to app settings if the permission is permanently denied.
+    PermissionStatus status;
+    if (Platform.isAndroid) {
+      // Try MANAGE_EXTERNAL_STORAGE first (Android 11+).
+      PermissionStatus manageStatus = await Permission.manageExternalStorage.status;
+      if (!manageStatus.isGranted) {
+        manageStatus = await Permission.manageExternalStorage.request();
+      }
+
+      if (manageStatus.isGranted) {
+        status = manageStatus;
+      } else {
+        // Fallback to legacy storage permission for older devices.
+        status = await Permission.storage.request();
+      }
+
+      // If permanently denied, prompt user to open app settings.
+      if (!status.isGranted && status.isPermanentlyDenied && mounted) {
+        final open = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Permission required'),
+            content: const Text(
+              'Please grant storage permission in app settings to access your photos.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Open settings'),
+              ),
+            ],
+          ),
+        );
+
+        if (open == true) {
+          await openAppSettings();
+        }
+      }
+    } else {
+      status = await Permission.photos.request();
+    }
+
+    if (!status.isGranted) {
+      setState(() {
+        _loading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Storage permission is required to access files'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final candidateDirs = <String>[
+      '/storage/emulated/0/Pictures',
+      '/storage/emulated/0/DCIM/Camera',
+      '/storage/emulated/0/DCIM/100MEDIA',
+      '/sdcard/DCIM/Camera',
+      '/storage/emulated/0/DCIM/100ANDRO',
+      '/camera',
+    ];
+
+    for (final path in candidateDirs) {
+      final folder = Directory(path);
+      if (await folder.exists()) {
+        final entities = await folder.list().toList();
+
+        final files = folder
+            .listSync()
+            .whereType<File>()
+            .where((file) {
+              final lower = file.path.toLowerCase();
+              return lower.endsWith('.jpg') ||
+                  lower.endsWith('.jpeg') ||
+                  lower.endsWith('.png') ||
+                  lower.endsWith('.webp') ||
+                  lower.endsWith('.gif');
+            })
+            .toList();
+
+        if (files.isNotEmpty) {
+          setState(() {
+            _cameraImages.addAll(files);
+            _loading = false;
+          });
+          return;
+        }
+      }
+    }
+
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _loading = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_cameraImages.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No images were found in the camera folder. Ensure the app has access to external storage and that the camera folder exists.',
+            textAlign: TextAlign.center,
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      itemCount: _cameraImages.length,
+      itemBuilder: (context, index) {
+        final imageFile = _cameraImages[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: Image.file(
+                    imageFile,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  child: Text(
+                    imageFile.path.split(Platform.pathSeparator).last,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
