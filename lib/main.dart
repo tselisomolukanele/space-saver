@@ -163,65 +163,99 @@ class _MyHomePageState extends State<MyHomePage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_cameraImages.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'No images were found in the camera folder. Ensure the app has access to external storage and that the camera folder exists.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
+    final halfHeight = MediaQuery.of(context).size.height * 0.5;
+    final hasImages = _cameraImages.isNotEmpty;
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      itemCount: _cameraImages.length,
-      itemBuilder: (context, index) {
-        final imageFile = _cameraImages[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: Card(
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: Image.file(
-                    imageFile,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.grey,
+    return Column(
+      children: [
+        SizedBox(
+          height: halfHeight,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            itemCount: hasImages ? _cameraImages.length : 3,
+            itemBuilder: (context, index) {
+              final cardWidth = MediaQuery.of(context).size.width * 0.8;
+              return Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: SizedBox(
+                  width: cardWidth,
+                  child: Card(
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: hasImages
+                              ? Image.file(
+                                  _cameraImages[index],
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(24),
+                                        child: Icon(
+                                          Icons.broken_image,
+                                          size: 64,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              : Container(
+                                  margin: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.photo,
+                                      size: 64,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
+                          child: Text(
+                            hasImages
+                                ? _cameraImages[index]
+                                    .path
+                                    .split(Platform.pathSeparator)
+                                    .last
+                                : 'Empty slot',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ),
-                      );
-                    },
+                      ],
+                    ),
                   ),
                 ),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  child: Text(
-                    imageFile.path.split(Platform.pathSeparator).last,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ),
-              ],
+              );
+            },
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                hasImages
+                    ? 'Swipe left or right to browse your images.'
+                    : 'No images were found in the camera folder. Ensure the app has access to external storage and that the camera folder exists.',
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }
