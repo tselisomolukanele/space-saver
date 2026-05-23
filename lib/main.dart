@@ -34,6 +34,10 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   final List<File> _cameraImages = [];
   bool _loading = true;
+  // Candidate folders scanned for images (displayed in the folder scroller)
+  final List<String> _candidateDirs = [];
+  // Map of folder path -> up to 4 thumbnail files for that folder
+  final Map<String, List<File>> _dirThumbnails = {};
 
   @override
   void initState() {
@@ -114,11 +118,15 @@ class _MyHomePageState extends State<MyHomePage> {
       '/camera',
     ];
 
+    // Prepare temporary containers then set state once to update UI.
+    final foundCameraImages = <File>[];
+    final candidateList = <String>[];
+    final thumbnails = <String, List<File>>{};
+
     for (final path in candidateDirs) {
+      candidateList.add(path);
       final folder = Directory(path);
       if (await folder.exists()) {
-        final entities = await folder.list().toList();
-
         final files = folder
             .listSync()
             .whereType<File>()
@@ -133,16 +141,24 @@ class _MyHomePageState extends State<MyHomePage> {
             .toList();
 
         if (files.isNotEmpty) {
-          setState(() {
-            _cameraImages.addAll(files);
-            _loading = false;
-          });
-          return;
+          // Keep up to 4 thumbnails to show in the folder scroller.
+          thumbnails[path] = files.take(4).toList();
+          // If we haven't populated the main image list yet, use the first non-empty folder.
+          if (foundCameraImages.isEmpty) {
+            foundCameraImages.addAll(files);
+          }
         }
       }
     }
 
     setState(() {
+      _candidateDirs.clear();
+      _candidateDirs.addAll(candidateList);
+      _dirThumbnails.clear();
+      _dirThumbnails.addAll(thumbnails);
+      if (foundCameraImages.isNotEmpty) {
+        _cameraImages.addAll(foundCameraImages);
+      }
       _loading = false;
     });
   }
@@ -168,6 +184,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     return Column(
       children: [
+        // Main image scroller (top, half height)
         SizedBox(
           height: halfHeight,
           child: ListView.builder(
@@ -242,6 +259,89 @@ class _MyHomePageState extends State<MyHomePage> {
             },
           ),
         ),
+
+        // Folder scroller (slightly smaller, two-row thumbnails per folder)
+        Builder(builder: (context) {
+          final folderHeight = halfHeight * 0.5;
+          final candidates = _candidateDirs.isNotEmpty ? _candidateDirs : [for (var i = 0; i < 3; i++) ''];
+          return SizedBox(
+            height: folderHeight,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              itemCount: candidates.length,
+              itemBuilder: (context, idx) {
+                final dir = candidates[idx];
+                final thumbs = dir.isNotEmpty ? (_dirThumbnails[dir] ?? []) : [];
+                final itemWidth = MediaQuery.of(context).size.width * 0.42;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: SizedBox(
+                    width: itemWidth,
+                    child: Card(
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // 2x2 small thumbnails
+                            Expanded(
+                              child: GridView.count(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 6,
+                                crossAxisSpacing: 6,
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: List.generate(4, (i) {
+                                  if (thumbs.length > i) {
+                                    return ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Image.file(
+                                        thumbs[i],
+                                        fit: BoxFit.cover,
+                                      ),
+                                    );
+                                  }
+
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.photo_library,
+                                        size: 20,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              dir.isNotEmpty
+                                  ? dir.split(Platform.pathSeparator).last
+                                  : 'Unknown',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        }),
+
         Expanded(
           child: Center(
             child: Padding(
