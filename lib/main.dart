@@ -130,10 +130,12 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     }
 
-    final initialDirectory = candidateList.isNotEmpty ? candidateList.first : null;
-    final initialImages = initialDirectory != null
-        ? filesByDirectory[initialDirectory]!.map((e) => File(e.path)).toList()
-        : <File>[];
+    // Start with nothing selected to allow showing all files by default.
+    final initialDirectory = null;
+    final initialImages = filesByDirectory.values
+      .expand((list) => list)
+      .map((e) => File(e.path))
+      .toList();
 
     setState(() {
       _candidateDirs.clear();
@@ -151,10 +153,35 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _selectDirectory(String directory) {
     setState(() {
-      _selectedDirectory = directory;
+      if (_selectedDirectory == directory) {
+        // Toggle off selection — show all files.
+        _selectedDirectory = null;
+        _selectedFolderImages
+          ..clear()
+          ..addAll(
+            _filesByDirectory.values
+                .expand((list) => list)
+                .map((e) => File(e.path)),
+          );
+      } else {
+        _selectedDirectory = directory;
+        _selectedFolderImages
+          ..clear()
+          ..addAll(_filesByDirectory[directory]?.map((e) => File(e.path)) ?? []);
+      }
+    });
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedDirectory = null;
       _selectedFolderImages
         ..clear()
-        ..addAll(_filesByDirectory[directory]?.map((e) => File(e.path)) ?? []);
+        ..addAll(
+          _filesByDirectory.values
+              .expand((list) => list)
+              .map((e) => File(e.path)),
+        );
     });
   }
 
@@ -258,28 +285,49 @@ class _MyHomePageState extends State<MyHomePage> {
         // Folder scroller (slightly smaller, two-row thumbnails per folder)
         Builder(builder: (context) {
           final folderHeight = halfHeight * 0.5;
-          final candidates = _candidateDirs.isNotEmpty ? _candidateDirs : [for (var i = 0; i < 3; i++) ''];
+          final baseCandidates = _candidateDirs.isNotEmpty
+              ? _candidateDirs
+              : [for (var i = 0; i < 3; i++) ''];
+
+          // Prepend a special 'All' card when we have real candidates.
+          final displayCandidates = _candidateDirs.isNotEmpty
+              ? ['__ALL__', ...baseCandidates]
+              : baseCandidates;
+
           return SizedBox(
             height: folderHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              itemCount: candidates.length,
+              itemCount: displayCandidates.length,
               itemBuilder: (context, idx) {
-                final dir = candidates[idx];
-                final thumbs = dir.isNotEmpty ? (_dirThumbnails[dir] ?? []) : [];
+                final raw = displayCandidates[idx];
+                final isAll = raw == '__ALL__';
+                final dir = isAll ? '' : raw;
+                final thumbs = isAll
+                    ? _filesByDirectory.values
+                        .expand((l) => l)
+                        .map((e) => File(e.path))
+                        .take(4)
+                        .toList()
+                    : (dir.isNotEmpty ? (_dirThumbnails[dir] ?? []) : []);
                 final itemWidth = MediaQuery.of(context).size.width * 0.42;
+
                 return Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: SizedBox(
                     width: itemWidth,
                     child: GestureDetector(
-                      onTap: dir.isNotEmpty ? () => _selectDirectory(dir) : null,
+                      onTap: isAll
+                          ? _selectAll
+                          : (dir.isNotEmpty ? () => _selectDirectory(dir) : null),
                       child: Card(
                         clipBehavior: Clip.antiAlias,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: dir == _selectedDirectory
+                          side: (isAll
+                                  ? _selectedDirectory == null
+                                  : dir == _selectedDirectory)
                               ? BorderSide(
                                   color: Theme.of(context).colorScheme.primary,
                                   width: 2,
@@ -326,9 +374,11 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                dir.isNotEmpty
-                                    ? dir.split(Platform.pathSeparator).last
-                                    : 'Unknown',
+                                isAll
+                                    ? 'All'
+                                    : (dir.isNotEmpty
+                                        ? dir.split(Platform.pathSeparator).last
+                                        : 'Unknown'),
                                 style: Theme.of(context).textTheme.bodySmall,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
