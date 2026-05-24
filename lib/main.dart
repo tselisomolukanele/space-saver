@@ -2,8 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as path_package;
+import 'services/database.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DatabaseHelper.initDB();
   runApp(const MyApp());
 }
 
@@ -109,14 +114,7 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    final candidateDirs = <String>[
-      '/storage/emulated/0/Pictures',
-      '/storage/emulated/0/DCIM/Camera',
-      '/storage/emulated/0/DCIM/100MEDIA',
-      '/sdcard/DCIM/Camera',
-      '/storage/emulated/0/DCIM/100ANDRO',
-      '/camera',
-    ];
+    final candidateDirs = await _loadCandidateDirsFromDatabase();        
 
     // Prepare temporary containers then set state once to update UI.
     final foundCameraImages = <File>[];
@@ -161,6 +159,34 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       _loading = false;
     });
+  }
+
+  Future<List<String>> _loadCandidateDirsFromDatabase() async {
+    try {
+      final databasesPath = await getDatabasesPath();
+      final dbPath = '$databasesPath${Platform.pathSeparator}albums.db';
+      if (!await databaseExists(dbPath)) {
+        return const [];
+      }
+
+      final db = await openDatabase(dbPath, readOnly: true);
+      try {
+        final rows = await db.rawQuery(
+          'SELECT DISTINCT value FROM album WHERE key = ?',
+          ['path'],
+        );
+        return rows
+            .map((row) => row['value'])
+            .whereType<String>()
+            .map( (value) => path_package.dirname(value))
+            .toSet()
+            .toList();
+      } finally {
+        await db.close();
+      }
+    } catch (_) {
+      return const [];
+    }
   }
 
   @override
