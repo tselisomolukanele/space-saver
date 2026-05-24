@@ -35,12 +35,15 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final List<File> _cameraImages = [];
+  final List<File> _selectedFolderImages = [];
+  String? _selectedDirectory;
   bool _loading = true;
   // Candidate folders scanned for images (displayed in the folder scroller)
   final List<String> _candidateDirs = [];
   // Map of folder path -> up to 4 thumbnail files for that folder
   final Map<String, List<File>> _dirThumbnails = {};
+  // Loaded files grouped by directory from the database
+  final Map<String, List<FileEntry>> _filesByDirectory = {};
 
   @override
   void initState() {
@@ -113,7 +116,6 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     // Prepare temporary containers then set state once to update UI.
-    final foundCameraImages = <File>[];
     final candidateList = <String>[];
     final thumbnails = <String, List<File>>{};
 
@@ -125,19 +127,34 @@ class _MyHomePageState extends State<MyHomePage> {
       candidateList.add(dir);
       if (files.isNotEmpty) {
         thumbnails[dir] = files.take(4).map((e) => File(e.path)).toList();
-        foundCameraImages.addAll(files.map((e) => File(e.path)));
       }
     }
+
+    final initialDirectory = candidateList.isNotEmpty ? candidateList.first : null;
+    final initialImages = initialDirectory != null
+        ? filesByDirectory[initialDirectory]!.map((e) => File(e.path)).toList()
+        : <File>[];
 
     setState(() {
       _candidateDirs.clear();
       _candidateDirs.addAll(candidateList);
       _dirThumbnails.clear();
       _dirThumbnails.addAll(thumbnails);
-      if (foundCameraImages.isNotEmpty) {
-        _cameraImages.addAll(foundCameraImages);
-      }
+      _filesByDirectory.clear();
+      _filesByDirectory.addAll(filesByDirectory);
+      _selectedDirectory = initialDirectory;
+      _selectedFolderImages.clear();
+      _selectedFolderImages.addAll(initialImages);
       _loading = false;
+    });
+  }
+
+  void _selectDirectory(String directory) {
+    setState(() {
+      _selectedDirectory = directory;
+      _selectedFolderImages
+        ..clear()
+        ..addAll(_filesByDirectory[directory]?.map((e) => File(e.path)) ?? []);
     });
   }
 
@@ -158,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     final halfHeight = MediaQuery.of(context).size.height * 0.5;
-    final hasImages = _cameraImages.isNotEmpty;
+    final hasImages = _selectedFolderImages.isNotEmpty;
 
     return Column(
       children: [
@@ -168,7 +185,7 @@ class _MyHomePageState extends State<MyHomePage> {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            itemCount: hasImages ? _cameraImages.length : 3,
+            itemCount: hasImages ? _selectedFolderImages.length : 3,
             itemBuilder: (context, index) {
               final cardWidth = MediaQuery.of(context).size.width * 0.8;
               return Padding(
@@ -186,7 +203,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         Expanded(
                           child: hasImages
                               ? Image.file(
-                                  _cameraImages[index],
+                                  _selectedFolderImages[index],
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
                                     return const Center(
@@ -221,7 +238,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               vertical: 12, horizontal: 16),
                           child: Text(
                             hasImages
-                                ? _cameraImages[index]
+                                ? _selectedFolderImages[index]
                                     .path
                                     .split(Platform.pathSeparator)
                                     .last
@@ -256,60 +273,68 @@ class _MyHomePageState extends State<MyHomePage> {
                   padding: const EdgeInsets.only(right: 12),
                   child: SizedBox(
                     width: itemWidth,
-                    child: Card(
-                      clipBehavior: Clip.antiAlias,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            // 2x2 small thumbnails
-                            Expanded(
-                              child: GridView.count(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 6,
-                                crossAxisSpacing: 6,
-                                physics: const NeverScrollableScrollPhysics(),
-                                children: List.generate(4, (i) {
-                                  if (thumbs.length > i) {
-                                    return ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: Image.file(
-                                        thumbs[i],
-                                        fit: BoxFit.cover,
+                    child: GestureDetector(
+                      onTap: dir.isNotEmpty ? () => _selectDirectory(dir) : null,
+                      child: Card(
+                        clipBehavior: Clip.antiAlias,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: dir == _selectedDirectory
+                              ? BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  width: 2,
+                                )
+                              : BorderSide.none,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: GridView.count(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 6,
+                                  crossAxisSpacing: 6,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  children: List.generate(4, (i) {
+                                    if (thumbs.length > i) {
+                                      return ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Image.file(
+                                          thumbs[i],
+                                          fit: BoxFit.cover,
+                                        ),
+                                      );
+                                    }
+
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Center(
+                                        child: Icon(
+                                          Icons.photo_library,
+                                          size: 20,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     );
-                                  }
-
-                                  return Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.photo_library,
-                                        size: 20,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  );
-                                }),
+                                  }),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              dir.isNotEmpty
-                                  ? dir.split(Platform.pathSeparator).last
-                                  : 'Unknown',
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Text(
+                                dir.isNotEmpty
+                                    ? dir.split(Platform.pathSeparator).last
+                                    : 'Unknown',
+                                style: Theme.of(context).textTheme.bodySmall,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
