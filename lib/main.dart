@@ -2,8 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as path_package;
 import 'services/database.dart';
 
 Future<void> main() async {
@@ -47,10 +45,10 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    _loadCameraImages();
+    _loadAndDisplayImages();
   }
 
-  Future<void> _loadCameraImages() async {
+  Future<void> _loadAndDisplayImages() async {
     // Request storage permissions.
     // On modern Android versions prefer MANAGE_EXTERNAL_STORAGE (all-files access),
     // fall back to legacy storage permission where appropriate, and guide the
@@ -114,38 +112,20 @@ class _MyHomePageState extends State<MyHomePage> {
       return;
     }
 
-    final candidateDirs = await _loadCandidateDirsFromDatabase();        
-
     // Prepare temporary containers then set state once to update UI.
     final foundCameraImages = <File>[];
     final candidateList = <String>[];
     final thumbnails = <String, List<File>>{};
 
-    for (final path in candidateDirs) {
-      candidateList.add(path);
-      final folder = Directory(path);
-      if (await folder.exists()) {
-        final files = folder
-            .listSync()
-            .whereType<File>()
-            .where((file) {
-              final lower = file.path.toLowerCase();
-              return lower.endsWith('.jpg') ||
-                  lower.endsWith('.jpeg') ||
-                  lower.endsWith('.png') ||
-                  lower.endsWith('.webp') ||
-                  lower.endsWith('.gif');
-            })
-            .toList();
+    final filesByDirectory = await DatabaseHelper.getFilesByDirectory();
 
-        if (files.isNotEmpty) {
-          // Keep up to 4 thumbnails to show in the folder scroller.
-          thumbnails[path] = files.take(4).toList();
-          // If we haven't populated the main image list yet, use the first non-empty folder.
-          if (foundCameraImages.isEmpty) {
-            foundCameraImages.addAll(files);
-          }
-        }
+    for (final entry in filesByDirectory.entries) {
+      final dir = entry.key;
+      final files = entry.value;
+      candidateList.add(dir);
+      if (files.isNotEmpty) {
+        thumbnails[dir] = files.take(4).map((e) => File(e.path)).toList();
+        foundCameraImages.addAll(files.map((e) => File(e.path)));
       }
     }
 
@@ -159,34 +139,6 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       _loading = false;
     });
-  }
-
-  Future<List<String>> _loadCandidateDirsFromDatabase() async {
-    try {
-      final databasesPath = await getDatabasesPath();
-      final dbPath = '$databasesPath${Platform.pathSeparator}albums.db';
-      if (!await databaseExists(dbPath)) {
-        return const [];
-      }
-
-      final db = await openDatabase(dbPath, readOnly: true);
-      try {
-        final rows = await db.rawQuery(
-          'SELECT DISTINCT value FROM album WHERE key = ?',
-          ['path'],
-        );
-        return rows
-            .map((row) => row['value'])
-            .whereType<String>()
-            .map( (value) => path_package.dirname(value))
-            .toSet()
-            .toList();
-      } finally {
-        await db.close();
-      }
-    } catch (_) {
-      return const [];
-    }
   }
 
   @override
