@@ -95,6 +95,9 @@ class DatabaseHelper {
       entries.removeWhere((e) => e.absolete);
     }
 
+    //remove empty directories
+    tagEntries.removeWhere((key, value) => value.isEmpty);
+
     return tagEntries;
   }
 }
