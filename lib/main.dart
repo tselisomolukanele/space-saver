@@ -59,7 +59,8 @@ class _MyHomePageState extends State<MyHomePage> {
     PermissionStatus status;
     if (Platform.isAndroid) {
       // Try MANAGE_EXTERNAL_STORAGE first (Android 11+).
-      PermissionStatus manageStatus = await Permission.manageExternalStorage.status;
+      PermissionStatus manageStatus =
+          await Permission.manageExternalStorage.status;
       if (!manageStatus.isGranted) {
         manageStatus = await Permission.manageExternalStorage.request();
       }
@@ -132,9 +133,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
     // Start with nothing selected to allow showing all files by default.
     final initialImages = filesByDirectory.values
-      .expand((list) => list)
-      .map((e) => File(e.path))
-      .toList();
+        .expand((list) => list)
+        .map((e) => File(e.path))
+        .toList();
 
     setState(() {
       _candidateDirs.clear();
@@ -166,8 +167,9 @@ class _MyHomePageState extends State<MyHomePage> {
             ..clear()
             ..addAll(
               _selectedDirectories
-                  .expand((selectedDir) =>
-                      _filesByDirectory[selectedDir] ?? const [])
+                  .expand(
+                    (selectedDir) => _filesByDirectory[selectedDir] ?? const [],
+                  )
                   .map((e) => File(e.path)),
             );
         }
@@ -177,8 +179,9 @@ class _MyHomePageState extends State<MyHomePage> {
           ..clear()
           ..addAll(
             _selectedDirectories
-                .expand((selectedDir) =>
-                    _filesByDirectory[selectedDir] ?? const [])
+                .expand(
+                  (selectedDir) => _filesByDirectory[selectedDir] ?? const [],
+                )
                 .map((e) => File(e.path)),
           );
       }
@@ -242,22 +245,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       children: [
                         Expanded(
                           child: hasImages
-                              ? Image.file(
-                                  _selectedFolderImages[index],
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(24),
-                                        child: Icon(
-                                          Icons.broken_image,
-                                          size: 64,
-                                          color: Colors.grey,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                )
+                              ? imageOrFallback(_selectedFolderImages[index])
                               : Container(
                                   margin: const EdgeInsets.all(24),
                                   decoration: BoxDecoration(
@@ -275,13 +263,14 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
                           child: Text(
                             hasImages
-                                ? _selectedFolderImages[index]
-                                    .path
-                                    .split(Platform.pathSeparator)
-                                    .last
+                                ? _selectedFolderImages[index].path
+                                      .split(Platform.pathSeparator)
+                                      .last
                                 : 'Empty slot',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
@@ -296,164 +285,185 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
 
         // Folder scroller (slightly smaller, two-row thumbnails per folder)
-        Builder(builder: (context) {
-          final folderHeight = halfHeight * 0.5;
-          final baseCandidates = _candidateDirs.isNotEmpty
-              ? _candidateDirs
-              : [for (var i = 0; i < 3; i++) ''];
+        Builder(
+          builder: (context) {
+            final folderHeight = halfHeight * 0.5;
+            final baseCandidates = _candidateDirs.isNotEmpty
+                ? _candidateDirs
+                : [for (var i = 0; i < 3; i++) ''];
 
-          // Prepend a special 'All' card when we have real candidates.
-          final displayCandidates = _candidateDirs.isNotEmpty
-              ? ['__ALL__', ...baseCandidates]
-              : baseCandidates;
+            // Prepend a special 'All' card when we have real candidates.
+            final displayCandidates = _candidateDirs.isNotEmpty
+                ? ['__ALL__', ...baseCandidates]
+                : baseCandidates;
 
-          return SizedBox(
-            height: folderHeight,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-              itemCount: displayCandidates.length,
-              itemBuilder: (context, idx) {
-                final raw = displayCandidates[idx];
-                final isAll = raw == '__ALL__';
-                final dir = isAll ? '' : raw;
-                final thumbs = isAll
-                    ? _filesByDirectory.values
-                        .expand((l) => l)
-                        .map((e) => File(e.path))
-                        .take(4)
-                        .toList()
-                    : (dir.isNotEmpty ? (_dirThumbnails[dir] ?? []) : []);
-                final itemWidth = MediaQuery.of(context).size.width * 0.42;
+            return SizedBox(
+              height: folderHeight,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                itemCount: displayCandidates.length,
+                itemBuilder: (context, idx) {
+                  final raw = displayCandidates[idx];
+                  final isAll = raw == '__ALL__';
+                  final dir = isAll ? '' : raw;
+                  final thumbs = isAll
+                      ? _filesByDirectory.values
+                            .expand((l) => l)
+                            .map((e) => File(e.path))
+                            .take(4)
+                            .toList()
+                      : (dir.isNotEmpty ? (_dirThumbnails[dir] ?? []) : []);
+                  final itemWidth = MediaQuery.of(context).size.width * 0.42;
 
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: SizedBox(
-                    width: itemWidth,
-                    child: GestureDetector(
-                      onTap: isAll
-                          ? _selectAll
-                          : (dir.isNotEmpty ? () => _selectDirectory(dir) : null),
-                      child: Card(
-                        clipBehavior: Clip.antiAlias,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: (isAll
-                                  ? _selectedDirectories.isEmpty
-                                  : _selectedDirectories.contains(dir))
-                              ? BorderSide(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  width: 2,
-                                )
-                              : BorderSide.none,
-                        ),
-                        child: Stack(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: GridView.count(
-                                      crossAxisCount: 2,
-                                      mainAxisSpacing: 6,
-                                      crossAxisSpacing: 6,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      children: List.generate(4, (i) {
-                                        if (thumbs.length > i) {
-                                          return ClipRRect(
-                                            borderRadius: BorderRadius.circular(6),
-                                            child: Image.file(
-                                              thumbs[i],
-                                              fit: BoxFit.cover,
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                      width: itemWidth,
+                      child: GestureDetector(
+                        onTap: isAll
+                            ? _selectAll
+                            : (dir.isNotEmpty
+                                  ? () => _selectDirectory(dir)
+                                  : null),
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side:
+                                (isAll
+                                    ? _selectedDirectories.isEmpty
+                                    : _selectedDirectories.contains(dir))
+                                ? BorderSide(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
+                                    width: 2,
+                                  )
+                                : BorderSide.none,
+                          ),
+                          child: Stack(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
+                                      child: GridView.count(
+                                        crossAxisCount: 2,
+                                        mainAxisSpacing: 6,
+                                        crossAxisSpacing: 6,
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        children: List.generate(4, (i) {
+                                          if (thumbs.length > i) {
+                                            return ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                              child: thumbnailOrFallBack(thumbs[i]),
+                                            );
+                                          }
+
+                                          return Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade200,
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: const Center(
+                                              child: Icon(
+                                                Icons.photo_library,
+                                                size: 20,
+                                                color: Colors.grey,
+                                              ),
                                             ),
                                           );
-                                        }
-
-                                        return Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade200,
-                                            borderRadius: BorderRadius.circular(6),
+                                        }),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      isAll
+                                          ? 'All'
+                                          : (dir.isNotEmpty
+                                                ? dir
+                                                      .split(
+                                                        Platform.pathSeparator,
+                                                      )
+                                                      .last
+                                                : 'Unknown'),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isAll && _selectedDirectories.isNotEmpty)
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${_selectedDirectories.length} selected',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
                                           ),
-                                          child: const Center(
-                                            child: Icon(
-                                              Icons.photo_library,
-                                              size: 20,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        );
-                                      }),
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    isAll
-                                        ? 'All'
-                                        : (dir.isNotEmpty
-                                            ? dir.split(Platform.pathSeparator).last
-                                            : 'Unknown'),
-                                    style: Theme.of(context).textTheme.bodySmall,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (isAll && _selectedDirectories.isNotEmpty)
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    '${_selectedDirectories.length} selected',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                ),
+                              if (!isAll && _selectedDirectories.contains(dir))
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            if (!isAll && _selectedDirectories.contains(dir))
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: Container(
-                                  width: 24,
-                                  height: 24,
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.check,
-                                    size: 16,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          );
-        }),
+                  );
+                },
+              ),
+            );
+          },
+        ),
 
         Expanded(
           child: Center(
@@ -470,5 +480,34 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ],
     );
+  }
+
+  Image imageOrFallback(File input) {
+    Center errorBuilder(context, error, stackTrace) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Icon(Icons.broken_image, size: 64, color: Colors.grey),
+        ),
+      );
+    }
+
+    if (input.path.isEmpty) {
+      return Image.asset(
+        'assets/images/oops.png',
+        fit: BoxFit.cover,
+        errorBuilder: errorBuilder,
+      );
+    }
+
+    return Image.file(input, fit: BoxFit.cover, errorBuilder: errorBuilder);
+  }
+
+  Image thumbnailOrFallBack(File input) {
+    if (input.path.isEmpty) {
+      return Image.asset('assets/images/oops.png', fit: BoxFit.cover);
+    }
+
+    return Image.file(input, fit: BoxFit.cover);
   }
 }
